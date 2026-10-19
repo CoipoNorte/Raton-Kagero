@@ -28,6 +28,19 @@ const SITE = `https://coiponorte.github.io/${REPO}/`;
 const REQUIRED_DEPS = ["three", "@react-three/fiber", "@react-three/drei", "framer-motion", "lucide-react", "react", "react-dom"];
 const REQUIRED_DEV_DEPS = ["gh-pages"];
 
+/**
+ * Comando de publicación.
+ *
+ * `-t` es `--dotfiles` y es una bandera booleana de gh-pages: no admite valor.
+ * Escribir `-t true` provoca "too many arguments. Expected 0 arguments but got 1"
+ * porque gh-pages interpreta `true` como argumento posicional. Sin `-t`, GitHub
+ * Pages no recibiría `dist/.nojekyll` y el sitio se publicaría roto.
+ */
+const DEPLOY_SCRIPT = "gh-pages -d dist -t";
+
+/** Expresión que sólo acepta el comando correcto, sin valores sobrantes. */
+const DEPLOY_SCRIPT_RE = /^gh-pages\s+-d\s+dist\s+-t$/;
+
 function fail(message) {
   console.error(`\n[deploy-prepare] ERROR: ${message}\n`);
   process.exit(1);
@@ -84,7 +97,10 @@ function normalizePackage(root) {
   pkg.scripts.check = "tsc --noEmit";
   pkg.scripts.test = "vitest run";
   pkg.scripts.predeploy = "npm run check && npm run build";
-  pkg.scripts.deploy = "gh-pages -d dist -t true";
+  // -t (--dotfiles) es una bandera booleana: NO acepta valor. Pasar "-t true"
+  // hace que gh-pages reciba "true" como argumento posicional y falle con
+  // "too many arguments".
+  pkg.scripts.deploy = DEPLOY_SCRIPT;
 
   pkg.dependencies = typeof pkg.dependencies === "object" && pkg.dependencies !== null ? pkg.dependencies : {};
   for (const name of REQUIRED_DEPS) {
@@ -114,7 +130,14 @@ function verifyPackage(root) {
   if (!/npm run build/.test(predeploy) || !/npm run check/.test(predeploy)) {
     problems.push("predeploy debe ejecutar npm run check y npm run build");
   }
-  if (!String(pkg.scripts.deploy || "").startsWith("gh-pages -d dist")) problems.push("deploy debe empezar por gh-pages -d dist");
+  const deploy = String(pkg.scripts.deploy || "");
+  if (!DEPLOY_SCRIPT_RE.test(deploy)) {
+    problems.push(`deploy debe ser exactamente "${DEPLOY_SCRIPT}" (encontrado: "${deploy || "(vacío)"}")`);
+  }
+  // Regresión concreta: "-t true" rompe gh-pages con "too many arguments".
+  if (/-t\s+\S+/.test(deploy)) {
+    problems.push('deploy pasa un valor a la bandera -t; gh-pages la trata como booleana y falla con "too many arguments"');
+  }
   if (!pkg.scripts.build || !String(pkg.scripts.build).includes("vite build")) problems.push("build debe ejecutar vite build");
   if (!String(pkg.scripts.check || "").includes("tsc")) problems.push("check debe ejecutar tsc --noEmit");
   for (const name of REQUIRED_DEPS) if (!pkg.dependencies[name]) problems.push(`falta dependency ${name}`);
@@ -257,17 +280,56 @@ const TASKS = {
   } },
 };
 
+function cleanRootArg(value) {
+  // CMD puede dejar la comilla final como parte del argumento cuando la ruta
+  // acaba en backslash: --root="C:\proyecto\" -> C:\proyecto\".
+  // Quitamos comillas exteriores/sobrantes antes de normalizar la ruta.
+  return String(value ?? "")
+    .trim()
+    .replace(/^["']+/, "")
+    .replace(/["']+$/, "");
+}
+
+function parseInvocation(argv, cwd = process.cwd()) {
+  let taskName = "all";
+  let foundTask = false;
+  let rootValue = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--root") {
+      rootValue = argv[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--root=")) {
+      rootValue = arg.slice("--root=".length);
+      continue;
+    }
+    if (!foundTask && !arg.startsWith("--")) {
+      taskName = arg;
+      foundTask = true;
+    }
+  }
+
+  const fromEnv = process.env.RATON_KAGERO_ROOT;
+  const selectedRoot = cleanRootArg(rootValue ?? fromEnv);
+  const root = selectedRoot ? path.resolve(cwd, selectedRoot) : cwd;
+  return { taskName, root };
+}
+
 function main() {
   const argv = process.argv.slice(2);
-  const taskName = argv.find((a) => !a.startsWith("--") && !a.includes(path.sep)) || "all";
-  const rootArg = argv.find((a) => a.startsWith("--root="));
-  const root = rootArg ? path.resolve(process.cwd(), rootArg.slice("--root=".length)) : process.cwd();
+  const { taskName, root } = parseInvocation(argv);
 
   if (!TASKS[taskName]) {
     fail(`tarea desconocida "${taskName}". Usa: ${Object.keys(TASKS).join(", ")}`);
   }
   if (!fs.existsSync(path.join(root, "package.json"))) {
-    fail(`no encuentro package.json en ${root}`);
+    fail(
+      `no encuentro package.json en "${root}". ` +
+      "Comprueba que la ruta exista y que deploy.bat esté junto a package.json.",
+    );
   }
 
   const task = TASKS[taskName];
@@ -281,4 +343,17 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { normalizePackage, normalizeVite, ensureNojekyll, verifyPackage, verifyVite, verifyNojekyll, verifyBuildOutput, BASE, SITE, REPO };
+module.exports = {
+  normalizePackage,
+  normalizeVite,
+  ensureNojekyll,
+  verifyPackage,
+  verifyVite,
+  verifyNojekyll,
+  verifyBuildOutput,
+  parseInvocation,
+  cleanRootArg,
+  BASE,
+  SITE,
+  REPO,
+};

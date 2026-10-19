@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Cabeza low-poly del ratón inventor">
+  <polygon points="0,0 64,0 64,64 0,64" fill="#0b1512" />
+  <polygon points="4,6 20,6 14,22 4,20" fill="#8c6224" />
+  <polygon points="60,6 44,6 50,22 60,20" fill="#8c6224" />
+  <polygon points="6,8 18,8 13,19 6,17" fill="#ff9ec4" />
+  <polygon points="58,8 46,8 51,19 58,17" fill="#ff9ec4" />
+  <polygon points="14,20 50,20 56,38 44,54 20,54 8,38" fill="#cfd8e3" />
+  <polygon points="14,20 50,20 44,30 20,30" fill="#e8eef5" />
+  <polygon points="8,38 20,54 44,54 56,38 44,44 20,44" fill="#b3c1d1" />
+  <rect x="13" y="17" width="38" height="7" fill="#d8a24a" />
+  <rect x="13" y="17" width="38" height="2" fill="#ffe07a" />
+  <polygon points="20,33 30,33 28,41 22,41" fill="#0b1512" />
+  <polygon points="34,33 44,33 42,41 36,41" fill="#0b1512" />
+  <polygon points="23,34 28,34 27,38 24,38" fill="#c6f96a" />
+  <polygon points="37,34 42,34 41,38 38,38" fill="#c6f96a" />
+  <polygon points="28,44 36,44 32,51" fill="#ff9ec4" />
+  <rect x="30" y="51" width="4" height="6" fill="#4d3016" />
+  <polygon points="22,57 42,57 46,64 18,64" fill="#ffcf3f" />
+  <circle cx="27" cy="61" r="2" fill="#b87b13" />
+  <circle cx="37" cy="60" r="1.6" fill="#b87b13" />
+</svg>

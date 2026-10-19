@@ -27,6 +27,7 @@ Estado real del proyecto. Marca las fases completadas y qué queda por hacer.
 | 18. Catálogo de salas | ✅ Hecho | 4 mapas jugables con tema propio, selector y 8 pruebas por mapa |
 | 19. Tutorial guiado | ✅ Hecho | 12 pasos que avanzan al hacer la acción; 2 bugs heredados corregidos |
 | 20. Estructura del HUD | ✅ Hecho | Dock de sistema anclado y indicadores agrupados en Misión/Marcador/Taller |
+| 21. Despliegue Windows | ✅ Hecho | Argumento `--root` retirado, bandera `-t` corregida y preflight de Git |
 
 ---
 
@@ -540,6 +541,62 @@ en móvil vertical el dock mide 133×48 con los tres botones, frente a los dos a
 Regresión completa: 73 unitarias, 50 de navegador (botones, juego, colisión, teclado, mapas,
 tutorial) y auditoría de legibilidad móvil en 7 vistas sin defectos. `tsc` limpio y `dist`
 verificado.
+
+---
+
+## Fase 21 — Despliegue en Windows ✅
+
+Dos errores reales detectados al ejecutar `deploy.bat` en Windows 10, corregidos y cubiertos
+por pruebas.
+
+### Error 1: ruta con comilla sobrante
+
+```text
+no encuentro package.json en C:\...\Raton-Kagero"
+```
+
+Causa: el argumento `--root="%ROOT%"`, donde `%ROOT%` procede de `%~dp0` y termina en barra
+invertida. Al pasar a Node por CMD, la comilla de cierre quedaba pegada al argumento.
+
+Corrección: el BAT ya no pasa `--root`. Limpia la ruta con `for %%I in ("%ROOT%.")`, hace
+`pushd` a la carpeta del BAT y ejecuta el helper allí, con `popd` al final. El helper sigue
+aceptando `--root PATH` y `--root=PATH` para pruebas, pero elimina comillas sobrantes antes
+de normalizar, y su mensaje de error indica que `deploy.bat` debe ir junto a `package.json`.
+
+### Error 2: bandera `-t` con valor
+
+```text
+> gh-pages -d dist -t true
+error: too many arguments. Expected 0 arguments but got 1.
+```
+
+Causa: `-t` (`--dotfiles`) es una **bandera booleana** de gh-pages y no admite valor. Al
+escribir `-t true`, gh-pages recibía `true` como argumento posicional. Reproducido en el
+entorno de desarrollo: el comando roto da exactamente ese error y el corregido avanza hasta
+el paso de Git.
+
+Corrección: `deploy` queda en `gh-pages -d dist -t`. Se conserva `-t` porque sin él gh-pages
+ignora los dotfiles y `dist/.nojekyll` no llegaría a GitHub Pages. La verificación del helper
+usa ahora `^gh-pages\s+-d\s+dist\s+-t$` y rechaza explícitamente cualquier valor tras `-t`;
+la tarea `package` reescribe un `deploy` roto.
+
+### Mejoras añadidas al BAT
+
+- **Preflight de Git**: comprueba que `git` esté en el PATH, que exista `.git` y que haya
+  remoto `origin`, con los comandos exactos para cada caso. Antes, un proyecto descargado
+  como ZIP fallaba dentro de gh-pages con un mensaje críptico.
+- **Sin doble compilación**: el paso de publicación invoca `gh-pages` directamente
+  (`node_modules\.bin\gh-pages.cmd`, con `npx` de respaldo) en vez de `npm run deploy`, que
+  disparaba `predeploy` y volvía a compilar lo ya compilado y verificado. En el registro del
+  usuario eran ~30 s duplicados. `npm run deploy` se mantiene intacto para uso independiente.
+- Mensajes de fallo de publicación con las causas habituales (repo, credenciales, rama
+  protegida).
+
+**Cobertura:** siete tests en `deploy-prepare.test.ts` que crean una carpeta temporal con
+espacios, simulan la comilla final de CMD, verifican que `check` rechaza `-t true` con el
+mensaje de gh-pages, que `package` lo repara, que se conserva `-t`, y que el `package.json`
+y el `deploy.bat` del proyecto no repiten ninguno de los dos fallos. Totales: **80 unitarias**,
+`tsc` limpio, build y `dist` verificados.
 
 ---
 
